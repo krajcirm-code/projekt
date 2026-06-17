@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake.io Clone</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #111;
+            border: 2px solid #444;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h2>Skóre: <span id="score">0</span></h2>
+    <p>Pohybuj myšou po plátne pre ovládanie</p>
+</div>
+
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+
+<script>
+    const socket = io();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+
+    let mouseX = 400;
+    let mouseY = 300;
+
+    // Sledovanie pohybu myši na plátne
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouseX = e.clientX - rect.left;
+        mouseY = e.clientY - rect.top;
+    });
+
+    // Každých 50ms pošleme na server uhol smerom k myši
+    setInterval(() => {
+        if (socket.id) {
+            // Nájdeme pomyselný stred (alebo predpokladanú hlavu, zjednodušene stred plátna)
+            // Pre presnosť posielame uhol od stredu obrazovky k myši
+            const dx = mouseX - (canvas.width / 2);
+            const dy = mouseY - (canvas.height / 2);
+            const angle = Math.atan2(dy, dx);
+            
+            socket.emit('update_input', { angle: angle });
+        }
+    }, 50);
+
+    // Prijímanie stavu hry a vykresľovanie
+    socket.on('game_tick', (gameState) => {
+        // Vyčistiť plátno
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Vykresliť jedlo
+        gameState.foods.forEach(food => {
+            ctx.beginPath();
+            ctx.arc(food.x, food.y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = food.color;
+            ctx.fill();
+            ctx.closePath();
+        });
+
+        // 2. Vykresliť všetkých hadov
+        Object.keys(gameState.players).forEach(pId => {
+            const player = gameState.players[pId];
+            
+            // Aktualizuj vlastné skóre v UI
+            if (pId === socket.id) {
+                scoreEl.innerText = player.score;
+            }
+
+            // Vykreslenie tela od konca po hlavu
+            player.body.forEach((part, index) => {
+                ctx.beginPath();
+                // Hlava je väčšia ako telo
+                const radius = index === 0 ? 12 : 9;
+                ctx.arc(part.x, part.y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = player.color;
+                ctx.fill();
+                ctx.closePath();
+
+                // Oči pre hlavu
+                if (index === 0) {
+                    ctx.beginPath();
+                    ctx.arc(part.x, part.y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff';
+                    ctx.fill();
+                    ctx.closePath();
+                }
+            });
+        });
+    });
+</script>
+</body>
+</html>
