@@ -7,9 +7,9 @@
     <style>
         body {
             margin: 0;
-            background-color: #222;
+            background-color: #1a1a1a;
             color: white;
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -17,18 +17,24 @@
             height: 100vh;
             overflow: hidden;
         }
-        canvas {
-            background-color: #111;
-            border: 2px solid #444;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
         #ui {
             position: absolute;
             top: 20px;
             left: 20px;
-            background: rgba(0,0,0,0.6);
-            padding: 10px;
-            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            pointer-events: none; /* Kliknutia prejdú cez UI na canvas */
+        }
+        h2 { margin: 0 0 5px 0; font-size: 24px; color: #2ecc71; }
+        p { margin: 0; font-size: 14px; color: #bbb; }
+        canvas {
+            background-color: #111;
+            border: 3px solid #333;
+            border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            cursor: crosshair;
         }
     </style>
 </head>
@@ -36,7 +42,7 @@
 
 <div id="ui">
     <h2>Skóre: <span id="score">0</span></h2>
-    <p>Pohybuj myšou po plátne pre ovládanie</p>
+    <p>Had nasleduje tvoj kurzor myši</p>
 </div>
 
 <canvas id="gameCanvas" width="800" height="600"></canvas>
@@ -49,33 +55,41 @@
 
     let mouseX = 400;
     let mouseY = 300;
+    let mySnakeHead = null;
 
-    // Sledovanie pohybu myši na plátne
+    // Sledovanie pozície myši relatívne k plátnu
     canvas.addEventListener('mousemove', (e) => {
         const rect = canvas.getBoundingClientRect();
         mouseX = e.clientX - rect.left;
         mouseY = e.clientY - rect.top;
     });
 
-    // Každých 50ms pošleme na server uhol smerom k myši
+    // Výpočet a odosielanie smeru priamo k myši vzhľadom na hlavu hada
     setInterval(() => {
-        if (socket.id) {
-            // Nájdeme pomyselný stred (alebo predpokladanú hlavu, zjednodušene stred plátna)
-            // Pre presnosť posielame uhol od stredu obrazovky k myši
-            const dx = mouseX - (canvas.width / 2);
-            const dy = mouseY - (canvas.height / 2);
-            const angle = Math.atan2(dy, dx);
+        if (socket.id && mySnakeHead) {
+            // Vypočítame vektor medzi hlavou hada a kurzorom
+            const dx = mouseX - mySnakeHead.x;
+            const dy = mouseY - mySnakeHead.y;
             
-            socket.emit('update_input', { angle: angle });
+            // Had sa začne otáčať len vtedy, ak je myš dostatočne ďaleko (prevencia trasenia)
+            if (Math.hypot(dx, dy) > 10) {
+                const angle = Math.atan2(dy, dx);
+                socket.emit('update_input', { angle: angle });
+            }
         }
-    }, 50);
+    }, 30); // Častejšia kontrola (30ms) pre plynulejšie reakcie
 
     // Prijímanie stavu hry a vykresľovanie
     socket.on('game_tick', (gameState) => {
-        // Vyčistiť plátno
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // 1. Vykresliť jedlo
+        // Uložíme si pozíciu vlastnej hlavy pre hernú slučku vyššie
+        if (gameState.players[socket.id]) {
+            mySnakeHead = gameState.players[socket.id].body[0];
+            scoreEl.innerText = gameState.players[socket.id].score;
+        }
+
+        // 1. Vykreslenie jedla
         gameState.foods.forEach(food => {
             ctx.beginPath();
             ctx.arc(food.x, food.y, 6, 0, Math.PI * 2);
@@ -84,30 +98,33 @@
             ctx.closePath();
         });
 
-        // 2. Vykresliť všetkých hadov
+        // 2. Vykreslenie všetkých hadov
         Object.keys(gameState.players).forEach(pId => {
             const player = gameState.players[pId];
             
-            // Aktualizuj vlastné skóre v UI
-            if (pId === socket.id) {
-                scoreEl.innerText = player.score;
-            }
-
-            // Vykreslenie tela od konca po hlavu
             player.body.forEach((part, index) => {
                 ctx.beginPath();
-                // Hlava je väčšia ako telo
-                const radius = index === 0 ? 12 : 9;
+                const isHead = index === 0;
+                const radius = isHead ? 12 : 9;
+                
                 ctx.arc(part.x, part.y, radius, 0, Math.PI * 2);
                 ctx.fillStyle = player.color;
                 ctx.fill();
+                
+                // Jemný obrys pre lepšiu viditeľnosť článkov
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 1;
+                ctx.stroke();
                 ctx.closePath();
 
-                // Oči pre hlavu
-                if (index === 0) {
+                // Detaily hlavy (oči)
+                if (isHead) {
                     ctx.beginPath();
-                    ctx.arc(part.x, part.y, 3, 0, Math.PI * 2);
-                    ctx.fillStyle = '#fff';
+                    // Oko 1
+                    ctx.arc(part.x - 3, part.y - 3, 3, 0, Math.PI * 2);
+                    // Oko 2
+                    ctx.arc(part.x + 3, part.y - 3, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ffffff';
                     ctx.fill();
                     ctx.closePath();
                 }
