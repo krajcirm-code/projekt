@@ -25,7 +25,7 @@
             padding: 15px;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            pointer-events: none; /* Kliknutia prejdú cez UI na canvas */
+            pointer-events: none;
         }
         h2 { margin: 0 0 5px 0; font-size: 24px; color: #2ecc71; }
         p { margin: 0; font-size: 14px; color: #bbb; }
@@ -57,39 +57,38 @@
     let mouseY = 300;
     let mySnakeHead = null;
 
-    // Sledovanie pozície myši relatívne k plátnu
+    // Zachytávanie myši na plátne
     canvas.addEventListener('mousemove', (e) => {
         const rect = canvas.getBoundingClientRect();
         mouseX = e.clientX - rect.left;
         mouseY = e.clientY - rect.top;
     });
 
-    // Výpočet a odosielanie smeru priamo k myši vzhľadom na hlavu hada
+    // Výpočet smeru OD HLAVY HADA ku kurzoru
     setInterval(() => {
         if (socket.id && mySnakeHead) {
-            // Vypočítame vektor medzi hlavou hada a kurzorom
             const dx = mouseX - mySnakeHead.x;
             const dy = mouseY - mySnakeHead.y;
             
-            // Had sa začne otáčať len vtedy, ak je myš dostatočne ďaleko (prevencia trasenia)
+            // Ak je myš ďalej ako 10 pixelov od hlavy, otoč hada
             if (Math.hypot(dx, dy) > 10) {
                 const angle = Math.atan2(dy, dx);
                 socket.emit('update_input', { angle: angle });
             }
         }
-    }, 30); // Častejšia kontrola (30ms) pre plynulejšie reakcie
+    }, 30);
 
-    // Prijímanie stavu hry a vykresľovanie
+    // Vykresľovanie hry
     socket.on('game_tick', (gameState) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Uložíme si pozíciu vlastnej hlavy pre hernú slučku vyššie
+        // Uloženie pozície hlavy tvojho hada
         if (gameState.players[socket.id]) {
             mySnakeHead = gameState.players[socket.id].body[0];
             scoreEl.innerText = gameState.players[socket.id].score;
         }
 
-        // 1. Vykreslenie jedla
+        // Vykreslenie jedla
         gameState.foods.forEach(food => {
             ctx.beginPath();
             ctx.arc(food.x, food.y, 6, 0, Math.PI * 2);
@@ -98,7 +97,7 @@
             ctx.closePath();
         });
 
-        // 2. Vykreslenie všetkých hadov
+        // Vykreslenie všetkých hadov
         Object.keys(gameState.players).forEach(pId => {
             const player = gameState.players[pId];
             
@@ -111,18 +110,14 @@
                 ctx.fillStyle = player.color;
                 ctx.fill();
                 
-                // Jemný obrys pre lepšiu viditeľnosť článkov
                 ctx.strokeStyle = '#111';
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 ctx.closePath();
 
-                // Detaily hlavy (oči)
                 if (isHead) {
                     ctx.beginPath();
-                    // Oko 1
                     ctx.arc(part.x - 3, part.y - 3, 3, 0, Math.PI * 2);
-                    // Oko 2
                     ctx.arc(part.x + 3, part.y - 3, 3, 0, Math.PI * 2);
                     ctx.fillStyle = '#ffffff';
                     ctx.fill();
