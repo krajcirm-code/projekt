@@ -65,43 +65,76 @@ def handle_input(data):
 # Hlavná herná slučka (beží na pozadí)
 def game_loop():
     while True:
-        socketio.sleep(0.05)  # 20 FPS (každých 50ms)
+        socketio.sleep(0.05)  # 20 FPS
         
+        # 1. KROK: Posun všetkých živých hadov
         for p_id, player in list(game_state["players"].items()):
             body = player["body"]
             head = body[0]
             angle = player["angle"]
             
-            # Výpočet nového pohybu hlavy
-            import math
             speed = 5
             new_head = {
                 "x": (head["x"] + math.cos(angle) * speed) % MAP_WIDTH,
                 "y": (head["y"] + math.sin(angle) * speed) % MAP_HEIGHT
             }
             
-            # Pridanie novej hlavy na začiatok tela
             body.insert(0, new_head)
             
-            # Kontrola kolízie s jedlom
+            # Kontrola jedla
             ate_food = False
             for food in list(game_state["foods"]):
-                # Vzdialenosť medzi hlavou a jedlom
                 dist = math.hypot(new_head["x"] - food["x"], new_head["y"] - food["y"])
-                if dist < 15:  # kolízia
+                if dist < 15:
                     game_state["foods"].remove(food)
                     player["score"] += 1
                     ate_food = True
                     break
             
-            # Ak nezjedol jedlo, odstránime posledný článok (had sa len posunul)
             if not ate_food:
                 body.pop()
+
+        # 2. KROK: Kontrola kolízií (SMRŤ - iba ak narazí do cudzích hadov)
+        dead_players = []
+
+        for p_id, player in game_state["players"].items():
+            head = player["body"][0]
+            
+            for other_id, other_player in game_state["players"].items():
+                # ÚPRAVA: Ak je to ten istý had (vlastné telo), úplne preskočíme kontrolu kolízie
+                if p_id == other_id:
+                    continue
                 
-        # Doplnenie jedla, ak nejaké chýba
+                # Prechádzame všetky články tela CUDZIEHO hada
+                for index, part in enumerate(other_player["body"]):
+                    # Ignorujeme hlavu cudzieho hada pri čelnej zrážke (index 0), 
+                    # aby sa nezabili obaja naraz, ale len ten, kto narazil zboku/zozadu
+                    if index == 0:
+                        continue
+
+                    dist = math.hypot(head["x"] - part["x"], head["y"] - part["y"])
+                    
+                    # Ak sa tvoja hlava dotkne cudzieho tela, zomieraš
+                    if dist < 12:
+                        dead_players.append(p_id)
+                        break
+                if p_id in dead_players:
+                    break
+
+        # 3. KROK: Respawn mŕtvych hadov
+        for p_id in dead_players:
+            if p_id in game_state["players"]:
+                new_x = random.randint(100, MAP_WIDTH - 100)
+                new_y = random.randint(100, MAP_HEIGHT - 100)
+                
+                game_state["players"][p_id]["score"] = 0
+                game_state["players"][p_id]["body"] = [{"x": new_x, "y": new_y}]
+                
+                for _ in range(2):
+                    game_state["players"][p_id]["body"].append({"x": new_x, "y": new_y})
+
+        # Doplnenie jedla a odoslanie dát
         spawn_food()
-        
-        # Odoslanie stavu všetkým hráčom
         socketio.emit('game_tick', game_state)
 
 # Spustenie hernej slučky hneď po štarte socketov
