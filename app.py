@@ -108,4 +108,6 @@ def game_loop():
 socketio.start_background_task(game_loop)
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    # Render automaticky priraďuje port cez premennú prostredia PORT
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host="0.0.0.0", port=port)
