@@ -48,7 +48,11 @@
 <canvas id="gameCanvas" width="800" height="600"></canvas>
 
 <script>
-    const socket = io();
+    // OPRAVA: Stabilnejšie pripojenie pre Render + Eventlet
+    const socket = io({
+        transports: ['websocket', 'polling']
+    });
+
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
@@ -57,20 +61,17 @@
     let mouseY = 300;
     let mySnakeHead = null;
 
-    // Zachytávanie myši na plátne
     canvas.addEventListener('mousemove', (e) => {
         const rect = canvas.getBoundingClientRect();
         mouseX = e.clientX - rect.left;
         mouseY = e.clientY - rect.top;
     });
 
-    // Výpočet smeru OD HLAVY HADA ku kurzoru
     setInterval(() => {
         if (socket.id && mySnakeHead) {
             const dx = mouseX - mySnakeHead.x;
             const dy = mouseY - mySnakeHead.y;
             
-            // Ak je myš ďalej ako 10 pixelov od hlavy, otoč hada
             if (Math.hypot(dx, dy) > 10) {
                 const angle = Math.atan2(dy, dx);
                 socket.emit('update_input', { angle: angle });
@@ -78,11 +79,11 @@
         }
     }, 30);
 
-    // Vykresľovanie hry
     socket.on('game_tick', (gameState) => {
+        if (!gameState || !gameState.players || !gameState.foods) return;
+
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Uloženie pozície hlavy tvojho hada
         if (gameState.players[socket.id]) {
             mySnakeHead = gameState.players[socket.id].body[0];
             scoreEl.innerText = gameState.players[socket.id].score;
@@ -97,7 +98,7 @@
             ctx.closePath();
         });
 
-        // Vykreslenie všetkých hadov
+        // Vykreslenie hadov
         Object.keys(gameState.players).forEach(pId => {
             const player = gameState.players[pId];
             
