@@ -57,6 +57,13 @@
     const ctx = canvas.getContext('2d');
     const scoreEl = document.getElementById('score');
 
+    // NOVÉ: Diagnostické vykreslenie hneď po načítaní stránky
+    ctx.fillStyle = "#111";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ff0000";
+    ctx.font = "20px Arial";
+    ctx.fillText("Čakám na prvé dáta zo servera...", 50, 50);
+
     let mouseX = 400;
     let mouseY = 300;
     let mySnakeHead = null;

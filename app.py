@@ -134,11 +134,42 @@ def game_loop():
                     game_state["players"][p_id]["body"].append({"x": new_x, "y": new_y})
 
         # Doplnenie jedla a odoslanie dát
+# ... (predchádzajúci kód s krokmi 1, 2, 3 v game_loop zostáva rovnaký) ...
+
         spawn_food()
         socketio.emit('game_tick', game_state)
 
+# TENTO RIADOK VYMAŽ: socketio.start_background_task(game_loop)
+
+# SPRAVÍME ŠTART TU: Slučka sa spustí až po pripojení prvého hráča, čo je pre Eventlet stabilnejšie
+game_loop_started = False
+
+@socketio.on('connect')
+def handle_connect():
+    global game_loop_started
+    p_id = request.sid
+    new_x = random.randint(100, 700)
+    new_y = random.randint(100, 500)
+    
+    game_state["players"][p_id] = {
+        "id": p_id,
+        "body": [{"x": new_x, "y": new_y}],
+        "color": random.choice(["#e74c3c", "#3498db", "#2ecc71", "#9b59b6", "#f1c40f"]),
+        "angle": 0,
+        "score": 0
+    }
+    for _ in range(2):
+        game_state["players"][p_id]["body"].append({"x": new_x, "y": new_y})
+        
+    # Ak slučka ešte nebeží, naštartujeme ju teraz
+    if not game_loop_started:
+        game_loop_started = True
+        socketio.start_background_task(game_loop)
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host="0.0.0.0", port=port)
 # Spustenie hernej slučky hneď po štarte socketov
-socketio.start_background_task(game_loop)
 
 if __name__ == '__main__':
     # Render automaticky priraďuje port cez premennú prostredia PORT
